@@ -18,8 +18,14 @@ type command struct {
 	values              []string
 }
 
-var ip = flag.String("ip", "localhost", "IP Address to send requests to webserver on. Default is localhost")
-var port = flag.String("port", "44440", "Port to send requests to the webserver on. Default is 44440")
+var ip string
+var port string
+var url string
+
+func init() {
+	flag.StringVar(&ip, "ip", "localhost", "IP Address to send requests to webserver on. Default is localhost")
+	flag.StringVar(&port, "port", "44440", "Port to send requests to the webserver on. Default is 44440")
+}
 
 func main() {
 	args := os.Args[1:]
@@ -34,7 +40,10 @@ func main() {
 	if err != nil {
 		panic("Couldn't open file: " + filename)
 	}
+
 	defer file.Close()
+	flag.Parse()
+	url = fmt.Sprintf("http://%s:%s/result", ip, port)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -45,8 +54,7 @@ func main() {
 			fmt.Println("\tCoudln't parse row")
 			continue
 		}
-		kvPairs := generateMapFromCommand(cmd)
-		generateHTTPRequests(kvPairs)
+		generateHTTPRequests(cmd)
 	}
 
 }
@@ -68,9 +76,6 @@ func createCommandStruct(c string, uname bool, stock bool, amt bool) *command {
 }
 
 func checkForValidCommand(cmd string) (c *command, e error) {
-	// Like a default case
-	c, e = nil, errors.New("Invalid Command")
-
 	switch cmd {
 	case "ADD":
 		c, e = createCommandStruct(cmd, true, false, true), nil
@@ -104,6 +109,8 @@ func checkForValidCommand(cmd string) (c *command, e error) {
 		c, e = createCommandStruct(cmd, true, false, false), nil
 	case "DISPLAY_SUMMARY":
 		c, e = createCommandStruct(cmd, true, false, false), nil
+	default:
+		c, e = nil, errors.New("Invalid Command")
 	}
 	return
 }
@@ -135,8 +142,8 @@ func generateMapFromCommand(c *command) (m map[string][]string) {
 	return
 }
 
-func generateHTTPRequests(values map[string][]string) {
-	url := fmt.Sprintf("http://%s:%s/result", *ip, *port)
+func generateHTTPRequests(c *command) {
+	values := generateMapFromCommand(c)
 	resp, err := http.PostForm(url, values)
 	if err != nil {
 		fmt.Println("\t" + err.Error())
