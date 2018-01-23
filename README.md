@@ -7,7 +7,8 @@ Generates HTTP POST requests directly to the results page of the webserver, whic
 build with rergular go tools
 
 ```
-go get github.com/RATDistributedSystems
+go get github.com/RATDistributedSystems/workload-generator
+cd $GOHOME/src/github.com/RATDistributedSystems/workload-generator
 go build workgen.go
 ```
 
@@ -17,12 +18,12 @@ Execute by pointing to the worklaod file
 ``` 
 ## Optional command-line flags
 
-By default the address to target will be localhost to modify, use the `--ip` flag
+By default the target address will be localhost. To modify, use the `--ip` flag
 
 `./workgen 100users.txt --ip 192.168.1.1`
 
-The port will default to `44440`. To modify use the `--port` flag
+The target port will default to `44440`. To modify use the `--port` flag
 
 `./workgen 1user.txt --port 44442`
 
-Both the `--ip` and `--port` can be used simultaneously. Both `-ip` and `-port` are also valid 
+Both the `--ip` and `--port` can be used simultaneously. `-ip` and `-port` are also valid 
