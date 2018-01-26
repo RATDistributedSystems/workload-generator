@@ -18,40 +18,41 @@ type command struct {
 	values              []string
 }
 
-var ip string
-var port string
-var url string
-
-func init() {
-	flag.StringVar(&ip, "ip", "localhost", "IP Address to send requests to webserver on. Default is localhost")
-	flag.StringVar(&port, "port", "44440", "Port to send requests to the webserver on. Default is 44440")
-}
+var (
+	ip       = flag.String("ip", "localhost", "IP Address to send requests to webserver on. Default is localhost")
+	port     = flag.Int("p", 44440, "Port to send requests to the webserver on. Default is 44440")
+	filename = flag.String("f", "", "file to execute workload commands from")
+	cmd      = flag.String("c", "", "single user command to execute")
+	url      string
+)
 
 func main() {
-	args := os.Args[1:]
 
-	if len(args) == 0 {
-		fmt.Println("No workload file provided")
-		os.Exit(1)
-	}
-
-	filename := args[0]
-	file, err := os.Open(filename)
-	if err != nil {
-		panic("Couldn't open file: " + filename)
-	}
-
-	defer file.Close()
 	flag.Parse()
-	url = fmt.Sprintf("http://%s:%s/result", ip, port)
+	url = fmt.Sprintf("http://%s:%d/result", *ip, *port)
+	var file *os.File
+	var scanner *bufio.Scanner
+	var err error
 
-	scanner := bufio.NewScanner(file)
+	if *filename != "" {
+		file, err = os.Open(*filename)
+		if err != nil {
+			panic("Couldn't open file: " + *filename)
+		}
+		scanner = bufio.NewScanner(file)
+		defer file.Close()
+	} else if *cmd != "" {
+		scanner = bufio.NewScanner(strings.NewReader(*cmd))
+	} else {
+		panic("No commands to process")
+	}
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		fmt.Println(line + ":")
 		cmd, err := parseLine(line)
 		if err != nil {
-			fmt.Println("\tCoudln't parse row")
+			fmt.Printf("\t%s: \"%s\"\n", err.Error(), line)
 			continue
 		}
 		generateHTTPRequests(cmd)
@@ -76,7 +77,7 @@ func createCommandStruct(c string, uname bool, stock bool, amt bool) *command {
 }
 
 func checkForValidCommand(cmd string) (c *command, e error) {
-	switch cmd {
+	switch strings.ToUpper(cmd) {
 	case "ADD":
 		c, e = createCommandStruct(cmd, true, false, true), nil
 	case "BUY":
