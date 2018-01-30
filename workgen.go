@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 type command struct {
@@ -23,6 +24,7 @@ var (
 	port     = flag.Int("p", 44440, "Port to send requests to the webserver on. Default is 44440")
 	filename = flag.String("f", "", "file to execute workload commands from")
 	cmd      = flag.String("c", "", "single user command to execute")
+	rate     = flag.Int("r", 50, "Delay (in ms) between successive commands")
 	url      string
 )
 
@@ -56,6 +58,7 @@ func main() {
 			continue
 		}
 		generateHTTPRequests(cmd)
+		time.Sleep(time.Millisecond * time.Duration(*rate))
 	}
 
 }
