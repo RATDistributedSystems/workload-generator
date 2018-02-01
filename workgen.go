@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -23,15 +24,18 @@ var (
 	ip       = flag.String("ip", "localhost", "IP Address to send requests to webserver on. Default is localhost")
 	port     = flag.Int("p", 44440, "Port to send requests to the webserver on. Default is 44440")
 	filename = flag.String("f", "", "file to execute workload commands from")
-	cmd      = flag.String("c", "", "single user command to execute")
 	rate     = flag.Int("r", 50, "Delay (in ms) between successive commands")
+	useTCP   = flag.Bool("tcp", false, "Sends the request as a TCP message instead of HTTP")
+	cmd      = flag.String("c", "", "single user command to execute")
+	addr     string
 	url      string
 )
 
 func main() {
 
 	flag.Parse()
-	url = fmt.Sprintf("http://%s:%d/result", *ip, *port)
+	addr = fmt.Sprintf("%s:%d", *ip, *port)
+	url = fmt.Sprintf("http://%s/result", addr)
 	var file *os.File
 	var scanner *bufio.Scanner
 	var err error
@@ -51,21 +55,30 @@ func main() {
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		fmt.Println(line + ":")
-		cmd, err := parseLine(line)
-		if err != nil {
-			fmt.Printf("\t%s: \"%s\"\n", err.Error(), line)
-			continue
+		fmt.Println(line)
+
+		if *useTCP {
+			generateTCPRequest(line)
+		} else {
+			cmd, err := parseLine(line)
+			if err != nil {
+				fmt.Printf("\t%s: \"%s\"\n", err.Error(), line)
+				continue
+			}
+			generateHTTPRequests(cmd)
 		}
-		generateHTTPRequests(cmd)
 		time.Sleep(time.Millisecond * time.Duration(*rate))
 	}
 
 }
 
-func parseLine(line string) (*command, error) {
+func removeBrackets(line string) string {
 	i := strings.Index(line, "]") + 1
-	trimmedLine := strings.TrimSpace(string(line[i:]))
+	return strings.TrimSpace(string(line[i:]))
+}
+
+func parseLine(line string) (*command, error) {
+	trimmedLine := removeBrackets(line)
 	args := strings.Split(trimmedLine, ",")
 	cmd, err := checkForValidCommand(args[0])
 	if err != nil {
@@ -144,6 +157,15 @@ func generateMapFromCommand(c *command) (m map[string][]string) {
 		m["amount"] = c.values[0:1]
 	}
 	return
+}
+
+func generateTCPRequest(line string) {
+	trimmedLine := removeBrackets(line)
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		// rip
+	}
+	fmt.Fprintf(conn, "%s\n", trimmedLine)
 }
 
 func generateHTTPRequests(c *command) {
