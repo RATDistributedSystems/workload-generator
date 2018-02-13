@@ -14,14 +14,10 @@ go build workgen.go
 
 Execute by pointing to the worklaod file
 ```
-./workgen 1000users.txt
+./workgen -f 1userWorkLoad
 ``` 
 
 ## Use with Docker
-
-The milestones are all executed in Docker, so we have generated a few docker images
-
-1. Building image yourself
 
 To build the docker image yourself, use the following commands
 
@@ -47,10 +43,27 @@ where `<name>` is the name or id of the webserver container
 
 By default the target address will be localhost. To modify, use the `--ip` flag
 
-`./workgen 100users.txt --ip 192.168.1.1`
+`./workgen -f 1userWorkLoad --ip 192.168.1.1`
 
 The target port will default to `44440`. To modify use the `--port` flag
 
-`./workgen 1user.txt --port 44442`
+`./workgen -f 1userWorkLoad --port 44442`
 
-Both the `--ip` and `--port` can be used simultaneously. `-ip` and `-port` are also valid 
+The rate of execution can be specific with the `-r` flag 
+which will add number of millisecond delay between commands. Default is 50 ms
+
+`./workgen -f 1userWorkLoad -r 50`
+
+
+Instead of point to a file, a single value can be passed in from the command line
+with the `-c` flag
+
+`./workgen -c "ADD, asinha94, 100.10"`
+
+The workload generator can also be used as a generic TCP client with the `--TCP` flag.
+
+`./workgen -f 1userWorkLoad --tcp=true` 
+
+## Shorthand Options
+
+The shorthand of every option is available e.g `--port` and `-port` are synonymous.
