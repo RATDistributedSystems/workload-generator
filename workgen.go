@@ -80,7 +80,11 @@ func removeBrackets(line string) string {
 func parseLine(line string) (*command, error) {
 	trimmedLine := removeBrackets(line)
 	args := strings.Split(trimmedLine, ",")
+	for i, items := range args {
+		args[i] = strings.TrimSpace(items)
+	}
 	cmd, err := checkForValidCommand(args[0])
+
 	if err != nil {
 		return nil, err
 	}
