@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ### PARAMS
-file="45User_testWorkLoad"
+file="1userWorkLoad"
 rate="100" # in ms
 
 # Little animation before we execute

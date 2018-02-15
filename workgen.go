@@ -55,7 +55,7 @@ func main() {
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		fmt.Println(line)
+		fmt.Printf("Sent: %s\n", line)
 
 		if *useTCP {
 			generateTCPRequest(line)
@@ -165,6 +165,7 @@ func generateTCPRequest(line string) {
 	if err != nil {
 		// rip
 	}
+	defer conn.Close()
 	fmt.Fprintf(conn, "%s\n", trimmedLine)
 }
 
