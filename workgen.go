@@ -167,7 +167,8 @@ func generateTCPRequest(line string) {
 	trimmedLine := removeBrackets(line)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		// rip
+		fmt.Println(err.Error())
+		return
 	}
 	defer conn.Close()
 	fmt.Fprintf(conn, "%s\n", trimmedLine)

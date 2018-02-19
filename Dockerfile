@@ -1,5 +1,5 @@
-FROM scratch
+FROM ubuntu:14.04
 
-COPY workgen workload_files /app/
+COPY workgen files /app/
 WORKDIR "/app"
-CMD ["./workgen", "1userWorkLoad"]
+CMD ["./workgen", "-f","45User_testWorkLoad"]
