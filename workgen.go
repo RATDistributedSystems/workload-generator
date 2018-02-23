@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -38,6 +39,7 @@ func main() {
 	url = fmt.Sprintf("http://%s/result", addr)
 	var file *os.File
 	var scanner *bufio.Scanner
+	var wg sync.WaitGroup
 	var err error
 
 	if *filename != "" {
@@ -56,20 +58,20 @@ func main() {
 	for scanner.Scan() {
 		line := scanner.Text()
 		fmt.Printf("Sent: %s\n", line)
-
+		wg.Add(1)
 		if *useTCP {
-			generateTCPRequest(line)
+			generateTCPRequest(line, &wg)
 		} else {
 			cmd, err := parseLine(line)
 			if err != nil {
 				fmt.Printf("\t%s: \"%s\"\n", err.Error(), line)
 				continue
 			}
-			generateHTTPRequests(cmd)
+			go generateHTTPRequests(cmd, &wg)
 		}
 		time.Sleep(time.Millisecond * time.Duration(*rate))
 	}
-
+	wg.Wait()
 }
 
 func removeBrackets(line string) string {
@@ -163,7 +165,7 @@ func generateMapFromCommand(c *command) (m map[string][]string) {
 	return
 }
 
-func generateTCPRequest(line string) {
+func generateTCPRequest(line string, wg *sync.WaitGroup) {
 	trimmedLine := removeBrackets(line)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
@@ -172,17 +174,18 @@ func generateTCPRequest(line string) {
 	}
 	defer conn.Close()
 	fmt.Fprintf(conn, "%s\n", trimmedLine)
+	wg.Done()
 }
 
-func generateHTTPRequests(c *command) {
+func generateHTTPRequests(c *command, wg *sync.WaitGroup) {
 	values := generateMapFromCommand(c)
 	resp, err := http.PostForm(url, values)
 	if err != nil {
 		fmt.Println("\t" + err.Error())
+		wg.Done()
 		return
 	}
-
-	fmt.Println("\t" + resp.Status)
+	resp.Request.Close = true
 	resp.Body.Close()
-
+	wg.Done()
 }
