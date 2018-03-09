@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"regexp"
 )
 
 type command struct {
@@ -72,6 +73,12 @@ func main() {
 		time.Sleep(time.Millisecond * time.Duration(*rate))
 	}
 	wg.Wait()
+}
+
+func getTransactionNumber(line string) string {
+    re := regexp.MustCompile(`(?s)\[(.*)\]`)
+    m := re.FindAllStringSubmatch(line,-1)
+    return m[0][1]
 }
 
 func removeBrackets(line string) string {
@@ -166,7 +173,10 @@ func generateMapFromCommand(c *command) (m map[string][]string) {
 }
 
 func generateTCPRequest(line string, wg *sync.WaitGroup) {
+	transactionNum := getTransactionNumber(line)
 	trimmedLine := removeBrackets(line)
+	trimmedLine = trimmedLine + "," + transactionNum
+	fmt.Println(trimmedLine)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		fmt.Println(err.Error())
