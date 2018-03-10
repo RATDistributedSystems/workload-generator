@@ -51,9 +51,6 @@ func main() {
 	var wg sync.WaitGroup
 	var err error
 
-	// Parallization
-	userCommandInput := make(map[string]userChannels)
-
 	if *filename != "" {
 		file, err = os.Open(*filename)
 		if err != nil {
@@ -67,8 +64,11 @@ func main() {
 		panic("No commands to process")
 	}
 
-	userCount := 0
+	// Parallization
+	userCommandInput := make(map[string]userChannels)
 	var parallelDumplog command
+	userCount := 0
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		wg.Add(1)
