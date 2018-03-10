@@ -5,21 +5,28 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
-	"regexp"
 )
 
 type command struct {
 	command             string
+	rawCommandString    string
 	usernameRequired    bool
 	stockIDRequired     bool
 	stockAmountRequired bool
 	values              []string
+}
+
+type userChannels struct {
+	input chan command
+	start chan bool
 }
 
 var (
@@ -29,6 +36,7 @@ var (
 	rate     = flag.Int("r", 50, "Delay (in ms) between successive commands")
 	useTCP   = flag.Bool("tcp", false, "Sends the request as a TCP message instead of HTTP")
 	cmd      = flag.String("c", "", "single user command to execute")
+	parallel = flag.Bool("para", false, "Whether to parallize the workload by user")
 	addr     string
 	url      string
 )
@@ -43,6 +51,9 @@ func main() {
 	var wg sync.WaitGroup
 	var err error
 
+	// Parallization
+	userCommandInput := make(map[string]userChannels)
+
 	if *filename != "" {
 		file, err = os.Open(*filename)
 		if err != nil {
@@ -56,29 +67,74 @@ func main() {
 		panic("No commands to process")
 	}
 
+	userCount := 0
+	var parallelDumplog command
 	for scanner.Scan() {
 		line := scanner.Text()
-		fmt.Printf("Sent: %s\n", line)
 		wg.Add(1)
+
+		if *parallel && *cmd == "" {
+			comm, _ := parseLine(line)
+
+			if comm.command == "DUMPLOG" {
+				parallelDumplog = *comm
+				wg.Done()
+				continue
+			}
+
+			userChanns, exists := userCommandInput[comm.values[1]]
+			if !exists {
+				userChanns.input = make(chan command)
+				userChanns.start = make(chan bool, 1)
+				userCommandInput[comm.values[1]] = userChanns
+				go parallelUserExecution(userChanns.input, userChanns.start, &wg)
+				userCount++
+				fmt.Printf("\rUser Count: %-4d", userCount)
+			}
+
+			userChanns.input <- *comm
+			continue
+		}
+
 		if *useTCP {
 			generateTCPRequest(line, &wg)
 		} else {
-			cmd, err := parseLine(line)
-			if err != nil {
-				fmt.Printf("\t%s: \"%s\"\n", err.Error(), line)
-				continue
-			}
-			go generateHTTPRequests(cmd, &wg)
+			comm, _ := parseLine(line)
+			go generateHTTPRequests(comm, &wg)
 		}
 		time.Sleep(time.Millisecond * time.Duration(*rate))
 	}
+
+	if *parallel && *cmd == "" {
+		fmt.Println("")
+		countdown := 3
+		for i := 0; i < countdown; i++ {
+			fmt.Printf("\rParallel Execution Starting in %d", countdown-i)
+			time.Sleep(time.Second)
+		}
+		fmt.Println("\nStarting...")
+		for _, user := range userCommandInput {
+			user.start <- true
+		}
+	}
+
 	wg.Wait()
+
+	if parallelDumplog.command != "" {
+		wg.Add(1)
+		if *useTCP {
+			generateTCPRequest(parallelDumplog.rawCommandString, &wg)
+		} else {
+			generateHTTPRequests(&parallelDumplog, &wg)
+		}
+	}
+	fmt.Printf("-------Completed Workload %s!!-------\n", *filename)
 }
 
 func getTransactionNumber(line string) string {
-    re := regexp.MustCompile(`(?s)\[(.*)\]`)
-    m := re.FindAllStringSubmatch(line,-1)
-    return m[0][1]
+	re := regexp.MustCompile(`(?s)\[(.*)\]`)
+	m := re.FindAllStringSubmatch(line, -1)
+	return m[0][1]
 }
 
 func removeBrackets(line string) string {
@@ -98,11 +154,12 @@ func parseLine(line string) (*command, error) {
 		return nil, err
 	}
 	cmd.values = args
+	cmd.rawCommandString = strings.Join(args, ",")
 	return cmd, nil
 }
 
 func createCommandStruct(c string, uname bool, stock bool, amt bool) *command {
-	return &command{c, uname, stock, amt, nil}
+	return &command{c, "", uname, stock, amt, nil}
 }
 
 func checkForValidCommand(cmd string) (c *command, e error) {
@@ -176,18 +233,23 @@ func generateTCPRequest(line string, wg *sync.WaitGroup) {
 	transactionNum := getTransactionNumber(line)
 	trimmedLine := removeBrackets(line)
 	trimmedLine = trimmedLine + "," + transactionNum
-	fmt.Println(trimmedLine)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		fmt.Println(err.Error())
+		wg.Done()
 		return
 	}
 	defer conn.Close()
 	fmt.Fprintf(conn, "%s\n", trimmedLine)
+	log.Printf("TCP: %s\n", line)
 	wg.Done()
 }
 
 func generateHTTPRequests(c *command, wg *sync.WaitGroup) {
+	if c == nil {
+		wg.Done()
+		return
+	}
 	values := generateMapFromCommand(c)
 	resp, err := http.PostForm(url, values)
 	if err != nil {
@@ -197,5 +259,29 @@ func generateHTTPRequests(c *command, wg *sync.WaitGroup) {
 	}
 	resp.Request.Close = true
 	resp.Body.Close()
+	log.Printf("HTTP: %s", c.rawCommandString)
 	wg.Done()
+}
+
+func parallelUserExecution(line <-chan command, start <-chan bool, wg *sync.WaitGroup) {
+	var lines []command
+
+	for {
+		select {
+		case msg := <-line:
+			lines = append(lines, msg)
+		case <-start:
+			for _, item := range lines {
+				if *useTCP {
+					generateTCPRequest(item.rawCommandString, wg)
+					time.Sleep(time.Millisecond * time.Duration(*rate))
+
+				} else {
+					go generateHTTPRequests(&item, wg)
+					time.Sleep(time.Millisecond * time.Duration(*rate))
+				}
+			}
+			return
+		}
+	}
 }
