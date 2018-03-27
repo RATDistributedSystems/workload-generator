@@ -128,7 +128,6 @@ func main() {
 			generateHTTPRequests(&parallelDumplog, &wg)
 		}
 	}
-	fmt.Printf("-------Completed Workload %s!!-------\n", *filename)
 }
 
 func getTransactionNumber(line string) string {

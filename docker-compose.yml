@@ -1,0 +1,6 @@
+version: '3'
+services:
+  workgen:
+    image: ratworkgen
+    env_file:
+      - variables.env
