@@ -37,6 +37,7 @@ var (
 	useTCP   = flag.Bool("tcp", false, "Sends the request as a TCP message instead of HTTP")
 	cmd      = flag.String("c", "", "single user command to execute")
 	parallel = flag.Bool("para", false, "Whether to parallize the workload by user")
+	useNum   = flag.Bool("num", true, "Use the Transaction Number provided by the workload file")
 	addr     string
 	url      string
 )
@@ -100,7 +101,7 @@ func main() {
 			generateTCPRequest(line, &wg)
 		} else {
 			comm, _ := parseLine(line)
-			go generateHTTPRequests(comm, &wg)
+			generateHTTPRequests(comm, &wg)
 		}
 		time.Sleep(time.Millisecond * time.Duration(*rate))
 	}
@@ -142,6 +143,7 @@ func removeBrackets(line string) string {
 }
 
 func parseLine(line string) (*command, error) {
+	transaction := getTransactionNumber(line)
 	trimmedLine := removeBrackets(line)
 	args := strings.Split(trimmedLine, ",")
 	for i, items := range args {
@@ -152,8 +154,10 @@ func parseLine(line string) (*command, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd.values = args
+
 	cmd.rawCommandString = strings.Join(args, ",")
+	args = append(args, transaction)
+	cmd.values = args
 	return cmd, nil
 }
 
@@ -225,13 +229,17 @@ func generateMapFromCommand(c *command) (m map[string][]string) {
 		c.values = pop(c.values)
 		m["amount"] = c.values[0:1]
 	}
+
+	c.values = pop(c.values)
+	if !*useNum {
+		c.values[0] = "0"
+	}
+	m["transaction"] = c.values[0:1]
 	return
 }
 
 func generateTCPRequest(line string, wg *sync.WaitGroup) {
-	transactionNum := getTransactionNumber(line)
 	trimmedLine := removeBrackets(line)
-	trimmedLine = trimmedLine + "," + transactionNum
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		fmt.Println(err.Error())
