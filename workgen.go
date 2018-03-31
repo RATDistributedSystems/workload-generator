@@ -101,7 +101,7 @@ func main() {
 			generateTCPRequest(line, &wg)
 		} else {
 			comm, _ := parseLine(line)
-			generateHTTPRequests(comm, &wg)
+			go generateHTTPRequests(comm, &wg)
 		}
 		time.Sleep(time.Millisecond * time.Duration(*rate))
 	}
@@ -196,7 +196,7 @@ func checkForValidCommand(cmd string) (c *command, e error) {
 	case "CANCEL_SET_SELL":
 		c, e = createCommandStruct(cmd, true, true, false), nil
 	case "DUMPLOG":
-		c, e = createCommandStruct(cmd, true, false, false), nil
+		c, e = createCommandStruct(cmd, false, true, false), nil
 	case "DISPLAY_SUMMARY":
 		c, e = createCommandStruct(cmd, true, false, false), nil
 	default:
@@ -217,7 +217,10 @@ func generateMapFromCommand(c *command) (m map[string][]string) {
 	if c.usernameRequired {
 		c.values = pop(c.values)
 		m["username"] = c.values[0:1]
+	} else if c.command == "DUMPLOG" {
+		m["username"] = []string{"-1"}
 	}
+
 	// Get Stock ID
 	if c.stockIDRequired {
 		c.values = pop(c.values)
@@ -253,6 +256,7 @@ func generateTCPRequest(line string, wg *sync.WaitGroup) {
 }
 
 func generateHTTPRequests(c *command, wg *sync.WaitGroup) {
+
 	if c == nil {
 		wg.Done()
 		return
@@ -266,6 +270,7 @@ func generateHTTPRequests(c *command, wg *sync.WaitGroup) {
 	}
 	resp.Request.Close = true
 	resp.Body.Close()
+
 	log.Printf("HTTP: %s", c.rawCommandString)
 	wg.Done()
 }
